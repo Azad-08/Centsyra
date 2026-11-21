@@ -17,6 +17,54 @@ from budget import analyze_budget, suggest_savings_actions, create_savings_plan
 
 load_dotenv()
 
+BUDGET_TOOLS = [
+    {
+        "type": "function",
+        "name": "get_budget_summary",
+        "description": (
+            "Calculate the student's monthly income, "
+            "expenses, remaining balance, and savings rate."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+    {
+        "type": "function",
+        "name": "get_savings_plan",
+        "description": (
+            "Calculate the student's savings gap, "
+            "weekly savings target, and goal feasibility."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+]
+
+
+
+def run_budget_tool(tool_name, income, expenses, goal):
+    """Execute the budgeting tool requested by the AI."""
+
+    if tool_name == "get_budget_summary":
+        return analyze_budget(income, expenses)
+
+    elif tool_name == "get_savings_plan":
+        return create_savings_plan(income, expenses, goal)
+
+    else:
+        raise ValueError(f"Unknown budgeting tool: {tool_name}")
+
+
 
 def ai_is_configured() -> bool:
     """Show a truthful UI label: live AI vs offline rule-based demo."""
@@ -77,6 +125,8 @@ def get_ai_advice(income: float, expenses: Mapping[str, float], goal: float) -> 
         model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
         response = client.responses.create(
             model=model,
+            tools=BUDGET_TOOLS,
+            tool_choice="required",
             instructions=(
                 "You are Centsyra, a concise and supportive budget coach for students in Debrecen, Hungary. "
                 "All amounts are monthly HUF. The numbers and computed tool outputs are authoritative: "
@@ -99,8 +149,48 @@ def get_ai_advice(income: float, expenses: Mapping[str, float], goal: float) -> 
             ),
             max_output_tokens=450,
         )
-        output = (response.output_text or "").strip()
-        return output if output else _offline_advice(income, expenses, goal)
+        
+        import json
+
+        tool_outputs = []
+
+        for item in response.output:
+            if item.type == "function_call":
+                result = run_budget_tool(
+                    item.name, income, expenses, goal
+                )
+
+                tool_outputs.append({
+                    "type": "function_call_output",
+                    "call_id": item.call_id,
+                    "output": json.dumps(result),
+                })
+
+        if not tool_outputs:
+            return _offline_advice(income, expenses, goal)
+
+        final_response = client.responses.create(
+            model=model,
+            previous_response_id=response.id,
+            input=tool_outputs,
+            tools=BUDGET_TOOLS,
+            tool_choice="none",
+            instructions=(
+                "You are Centsyra, a helpful student budget coach. "
+                "Use the verified budgeting tool results as the "
+                "authoritative numbers. Give a short overview and "
+                "three practical recommendations in Markdown. "
+                "Do not invent transactions, promise results, "
+                "or recommend loans or investments."
+            ),
+            max_output_tokens=450,
+        )
+
+        output = (final_response.output_text or "").strip()
+        return output if output else _offline_advice(
+            income, expenses, goal
+        )
+
     except Exception:
         # Keep the demo running if Wi-Fi, authentication, model access, or quota fails.
         return (
