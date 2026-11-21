@@ -52,13 +52,15 @@ st.sidebar.subheader("Your monthly budget")
 income = st.sidebar.number_input("Monthly income · HUF", min_value=0, max_value=10000000, value=180000, step=5000)
 
 st.sidebar.markdown("**Monthly expenses · HUF**")
+
 DEFAULT_EXPENSES = {
-    "Rent": 85000,
-    "Groceries": 45000,
-    "Transport": 8000,
-    "Subscriptions": 5000,
-    "Other": 15000,
+    "Rent": 0,
+    "Groceries": 0,
+    "Transport": 0,
+    "Subscriptions": 0,
+    "Other": 0,
 }
+
 expenses: dict[str, int] = {}
 for category, default in DEFAULT_EXPENSES.items():
     expenses[category] = st.sidebar.number_input(
