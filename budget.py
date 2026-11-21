@@ -84,3 +84,46 @@ def suggest_savings_actions(income: float, expenses: Mapping[str, float], goal: 
     if not actions:
         actions.append("Review your expenses each week and set aside a small emergency-fund contribution.")
     return actions
+
+def create_savings_plan(income, expenses, goal):
+    """Calculate how much more a student needs to save."""
+
+    budget = analyze_budget(income, expenses)
+    target = _amount(goal, "Savings goal")
+
+    balance = budget["remaining_balance"]
+    gap = round(max(0, target - balance), 2)
+    spending_limit = round(budget["income"] - target, 2)
+
+    if target > budget["income"]:
+        message = (
+            "Your goal exceeds your monthly income. "
+            "Spending cuts alone cannot achieve it. "
+            "Consider adjusting your goal or increasing income."
+        )
+
+    elif gap == 0:
+        message = "Congratulations! Your budget already meets your savings goal."
+
+    elif balance < 0:
+        message = (
+            f"First eliminate your {abs(balance):,.0f} HUF deficit. "
+            f"Then free up {target:,.0f} HUF for savings."
+        )
+
+    else:
+        message = (
+            f"Reduce monthly spending by {gap:,.0f} HUF "
+            "to achieve your savings goal."
+        )
+
+    return {
+        "monthly_goal": round(target, 2),
+        "current_balance": balance,
+        "monthly_gap": gap,
+        "weekly_gap": round(gap / 4, 2),
+        "max_monthly_spending": spending_limit,
+        "goal_is_feasible_from_spending_cuts": target <= budget["income"],
+        "goal_met": gap == 0,
+        "message": message,
+    }
