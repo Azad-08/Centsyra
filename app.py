@@ -109,6 +109,59 @@ with right:
     st.markdown('<div class="panel"><b>💡 Small steps add up.</b><br>Start by reviewing your largest monthly expense, then check spending once a week.</div>', unsafe_allow_html=True)
 
 st.divider()
+st.subheader("🧪 What-if Savings Simulator")
+st.caption("Try different spending cuts to see how your budget could change. Your real budget inputs stay the same.")
+
+with st.container(border=True):
+    st.markdown("**Adjust hypothetical monthly spending**")
+    st.caption("Example: Reduce Groceries by 20% to free up 9,000 Ft each month.")
+    simulated_expenses = {}
+    slider_columns = st.columns(2)
+    for index, (category, original_amount) in enumerate(expenses.items()):
+        with slider_columns[index % 2]:
+            reduction_percent = st.slider(
+                f"Reduce {category} by",
+                min_value=0,
+                max_value=100,
+                value=0,
+                step=5,
+                format="%d%%",
+                key=f"whatif_{category}",
+            )
+        simulated_expenses[category] = round(original_amount * (100 - reduction_percent) / 100, 2)
+
+    scenario = analyze_budget(income, simulated_expenses)
+    extra_savings = round(scenario["remaining_balance"] - budget["remaining_balance"], 2)
+    goal_shortfall = max(0, goal - scenario["remaining_balance"])
+
+    metric_a, metric_b, metric_c = st.columns(3)
+    metric_a.metric(
+        "What-if money remaining",
+        f"{scenario['remaining_balance']:,.0f} Ft",
+        delta=f"+{extra_savings:,.0f} Ft vs current" if extra_savings else None,
+    )
+    metric_b.metric("What-if total spending", f"{scenario['total_expenses']:,.0f} Ft")
+    metric_c.metric("Gap to savings goal", f"{goal_shortfall:,.0f} Ft")
+
+    if goal <= 0:
+        st.info("Set a monthly savings goal in the sidebar to check whether your scenario meets it.")
+    elif scenario["remaining_balance"] >= goal:
+        st.success(f"Goal reached in this scenario! You could have {scenario['remaining_balance']:,.0f} Ft left per month.")
+    else:
+        st.warning(f"This scenario is still {goal_shortfall:,.0f} Ft short of your monthly savings goal.")
+
+    st.markdown("**Current spending vs simulated spending**")
+    comparison = pd.DataFrame(
+        {
+            "Current": [expenses[category] for category in expenses],
+            "What-if": [simulated_expenses[category] for category in expenses],
+        },
+        index=list(expenses),
+    )
+    st.bar_chart(comparison, horizontal=True, color=["#607787", "#42dfb2"])
+    st.caption("These numbers are hypothetical, not automatically applied to your budget. All amounts are monthly HUF.")
+
+st.divider()
 st.subheader("✦ Your Centsyra coach")
 if ai_is_configured():
     st.caption("Live AI mode · An LLM uses your calculated budget and local savings tools.")
