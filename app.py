@@ -47,11 +47,14 @@ st.markdown(
 st.sidebar.markdown("# 💠 Centsyra")
 st.sidebar.caption("Your student money companion")
 st.sidebar.divider()
-st.sidebar.subheader("Your monthly budget")
+st.sidebar.subheader("Setup your month")
+st.sidebar.caption("Enter your available money, planned expenses, and quick spending updates.")
 
 income = st.sidebar.number_input("Monthly income · HUF", min_value=0, max_value=10000000, value=180000, step=5000)
 
-st.sidebar.markdown("**Monthly expenses · HUF**")
+st.sidebar.divider()
+st.sidebar.markdown("### Planned expenses")
+st.sidebar.caption("Set or edit your expected spending by category.")
 
 DEFAULT_EXPENSES = {
     "Rent": 0,
@@ -82,7 +85,9 @@ def add_logged_expense():
         st.session_state["log_amount"] = 0
 
 
-st.sidebar.markdown("### Log an Expense")
+st.sidebar.divider()
+st.sidebar.markdown("### Quick add expense")
+st.sidebar.caption("Add a new expense to update the budget instantly.")
 
 with st.sidebar.form("log_expense_form"):
     st.selectbox(
@@ -102,7 +107,8 @@ with st.sidebar.form("log_expense_form"):
         "Add Expense",
         on_click=add_logged_expense
     )
-
+st.sidebar.divider()
+st.sidebar.markdown("### Savings goal")
 goal = st.sidebar.number_input("Monthly savings goal · HUF", min_value=0, max_value=10000000, value=30000, step=1000)
 st.sidebar.caption("Example numbers are editable. No bank connection required.")
 
@@ -115,7 +121,7 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Monthly income", f"{budget['income']:,.0f} Ft")
 col2.metric("Total spending", f"{budget['total_expenses']:,.0f} Ft")
 col3.metric("Money remaining", f"{budget['remaining_balance']:,.0f} Ft")
-col4.metric("Savings rate", f"{budget['savings_rate']:.1f}%")
+col4.metric("Budget remaining (%)", f"{budget['savings_rate']:.1f}%")
 
 if budget["overspending"]:
     st.error("You are currently spending more than your monthly income. Your coach can help you find a starting point.")
@@ -131,7 +137,10 @@ with left:
         {"Category": list(budget["category_breakdown"]),
          "HUF": list(budget["category_breakdown"].values())}
     ).set_index("Category")
-    st.bar_chart(plot_data, color="#42dfb2", horizontal=True)
+    if budget["total_expenses"] > 0:
+        st.bar_chart(plot_data, color="#42dfb2", horizontal=True)
+    else:
+        st.info("No expenses recorded yet. Add an expense to see your spending breakdown.")
     st.caption("Update any number in the sidebar to see the dashboard recalculate instantly.")
 
 with right:
@@ -139,7 +148,8 @@ with right:
     current_savings = max(budget["remaining_balance"], 0)
     progress = min(current_savings / goal, 1.0) if goal > 0 else 1.0
     st.progress(progress)
-    st.metric("Potential monthly savings", f"{current_savings:,.0f} Ft")
+    st.metric("Money available for savings", f"{current_savings:,.0f} Ft")
+    st.caption("Based on expenses logged so far. Future spending may reduce this amount.")
     if goal:
         st.caption(f"Goal: {goal:,.0f} Ft/month · {progress*100:.0f}% covered")
     else:
