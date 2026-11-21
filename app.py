@@ -47,24 +47,68 @@ st.markdown(
 st.sidebar.markdown("# 💠 Centsyra")
 st.sidebar.caption("Your student money companion")
 st.sidebar.divider()
-st.sidebar.subheader("Your monthly budget")
+st.sidebar.subheader("Setup your month")
+st.sidebar.caption("Enter your available money, planned expenses, and quick spending updates.")
 
 income = st.sidebar.number_input("Monthly income · HUF", min_value=0, max_value=10000000, value=180000, step=5000)
 
-st.sidebar.markdown("**Monthly expenses · HUF**")
+st.sidebar.divider()
+st.sidebar.markdown("### Planned expenses")
+st.sidebar.caption("Set or edit your expected spending by category.")
+
 DEFAULT_EXPENSES = {
-    "Rent": 85000,
-    "Groceries": 45000,
-    "Transport": 8000,
-    "Subscriptions": 5000,
-    "Other": 15000,
+    "Rent": 0,
+    "Groceries": 0,
+    "Transport": 0,
+    "Subscriptions": 0,
+    "Other": 0,
 }
+
 expenses: dict[str, int] = {}
 for category, default in DEFAULT_EXPENSES.items():
     expenses[category] = st.sidebar.number_input(
-        category, min_value=0, max_value=10000000, value=default, step=1000, key=f"expense_{category}"
+    category,
+    min_value=0,
+    max_value=1000000,
+    value=default,
+    step=1000,
+    key=f"expense_{category}"
+)
+
+# Simple Expense Logger
+def add_logged_expense():
+    category = st.session_state["log_category"]
+    amount = st.session_state["log_amount"]
+
+    if amount > 0:
+        st.session_state[f"expense_{category}"] += amount
+        st.session_state["log_amount"] = 0
+
+
+st.sidebar.divider()
+st.sidebar.markdown("### Quick add expense")
+st.sidebar.caption("Add a new expense to update the budget instantly.")
+
+with st.sidebar.form("log_expense_form"):
+    st.selectbox(
+        "Category",
+        list(DEFAULT_EXPENSES.keys()),
+        key="log_category"
     )
 
+    st.number_input(
+        "Amount spent (Ft)",
+        min_value=0,
+        step=100,
+        key="log_amount"
+    )
+
+    st.form_submit_button(
+        "Add Expense",
+        on_click=add_logged_expense
+    )
+st.sidebar.divider()
+st.sidebar.markdown("### Savings goal")
 goal = st.sidebar.number_input("Monthly savings goal · HUF", min_value=0, max_value=10000000, value=30000, step=1000)
 st.sidebar.caption("Example numbers are editable. No bank connection required.")
 
@@ -77,7 +121,7 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Monthly income", f"{budget['income']:,.0f} Ft")
 col2.metric("Total spending", f"{budget['total_expenses']:,.0f} Ft")
 col3.metric("Money remaining", f"{budget['remaining_balance']:,.0f} Ft")
-col4.metric("Savings rate", f"{budget['savings_rate']:.1f}%")
+col4.metric("Budget remaining (%)", f"{budget['savings_rate']:.1f}%")
 
 if budget["overspending"]:
     st.error("You are currently spending more than your monthly income. Your coach can help you find a starting point.")
@@ -93,7 +137,10 @@ with left:
         {"Category": list(budget["category_breakdown"]),
          "HUF": list(budget["category_breakdown"].values())}
     ).set_index("Category")
-    st.bar_chart(plot_data, color="#42dfb2", horizontal=True)
+    if budget["total_expenses"] > 0:
+        st.bar_chart(plot_data, color="#42dfb2", horizontal=True)
+    else:
+        st.info("No expenses recorded yet. Add an expense to see your spending breakdown.")
     st.caption("Update any number in the sidebar to see the dashboard recalculate instantly.")
 
 with right:
@@ -101,12 +148,129 @@ with right:
     current_savings = max(budget["remaining_balance"], 0)
     progress = min(current_savings / goal, 1.0) if goal > 0 else 1.0
     st.progress(progress)
-    st.metric("Potential monthly savings", f"{current_savings:,.0f} Ft")
+    st.metric("Money available for savings", f"{current_savings:,.0f} Ft")
+    st.caption("Based on expenses logged so far. Future spending may reduce this amount.")
     if goal:
         st.caption(f"Goal: {goal:,.0f} Ft/month · {progress*100:.0f}% covered")
     else:
         st.caption("Set a savings goal in the sidebar to track your progress.")
     st.markdown('<div class="panel"><b>💡 Small steps add up.</b><br>Start by reviewing your largest monthly expense, then check spending once a week.</div>', unsafe_allow_html=True)
+
+st.divider()
+st.subheader("🧪 What-if Savings Simulator")
+st.caption("Try different spending cuts to see how your budget could change. Your real budget inputs stay the same.")
+
+with st.container(border=True):
+    st.markdown("**Adjust hypothetical monthly spending**")
+    st.caption("Example: Reduce Groceries by 20% to free up 9,000 Ft each month.")
+    simulated_expenses = {}
+    slider_columns = st.columns(2)
+    for index, (category, original_amount) in enumerate(expenses.items()):
+        with slider_columns[index % 2]:
+            reduction_percent = st.slider(
+                f"Reduce {category} by",
+                min_value=0,
+                max_value=100,
+                value=0,
+                step=5,
+                format="%d%%",
+                key=f"whatif_{category}",
+            )
+        simulated_expenses[category] = round(original_amount * (100 - reduction_percent) / 100, 2)
+
+    scenario = analyze_budget(income, simulated_expenses)
+    extra_savings = round(scenario["remaining_balance"] - budget["remaining_balance"], 2)
+    goal_shortfall = max(0, goal - scenario["remaining_balance"])
+
+    metric_a, metric_b, metric_c = st.columns(3)
+    metric_a.metric(
+        "What-if money remaining",
+        f"{scenario['remaining_balance']:,.0f} Ft",
+        delta=f"+{extra_savings:,.0f} Ft vs current" if extra_savings else None,
+    )
+    metric_b.metric("What-if total spending", f"{scenario['total_expenses']:,.0f} Ft")
+    metric_c.metric("Gap to savings goal", f"{goal_shortfall:,.0f} Ft")
+
+    if goal <= 0:
+        st.info("Set a monthly savings goal in the sidebar to check whether your scenario meets it.")
+    elif scenario["remaining_balance"] >= goal:
+        st.success(f"Goal reached in this scenario! You could have {scenario['remaining_balance']:,.0f} Ft left per month.")
+    else:
+        st.warning(f"This scenario is still {goal_shortfall:,.0f} Ft short of your monthly savings goal.")
+
+    st.markdown("**Current spending vs simulated spending**")
+    comparison = pd.DataFrame(
+        {
+            "Current": [expenses[category] for category in expenses],
+            "What-if": [simulated_expenses[category] for category in expenses],
+        },
+        index=list(expenses),
+    )
+    st.bar_chart(comparison, horizontal=True, color=["#607787", "#42dfb2"])
+    st.caption("These numbers are hypothetical, not automatically applied to your budget. All amounts are monthly HUF.")
+
+
+# Smart Spending Insights
+st.subheader("📊 Smart Spending Insights")
+
+total_spending = sum(expenses.values())
+
+if total_spending > 0:
+    largest_category = max(expenses, key=expenses.get)
+    largest_amount = expenses[largest_category]
+    largest_percentage = largest_amount / total_spending * 100
+
+    st.info(
+        f"💰 Your largest expense is **{largest_category}**: "
+        f"{largest_amount:,.0f} Ft "
+        f"({largest_percentage:.1f}% of total spending)."
+    )
+
+    st.markdown("### Spending Breakdown")
+
+    sorted_expenses = sorted(
+        expenses.items(),
+        key=lambda item: item[1],
+        reverse=True
+    )
+
+    for category, amount in sorted_expenses:
+        percentage = amount / total_spending
+
+        st.write(
+            f"**{category}** — {amount:,.0f} Ft "
+            f"({percentage * 100:.1f}%)"
+        )
+
+        st.progress(percentage)
+
+    # Potential Savings Opportunity
+    st.markdown("### 💡 Potential Savings Opportunity")
+
+    flexible_expenses = {
+        category: amount
+        for category, amount in expenses.items()
+        if category.lower() in {
+            "groceries", "subscriptions", "other", "transport"
+        } and amount > 0
+    }
+
+    if flexible_expenses:
+        category = max(flexible_expenses, key=flexible_expenses.get)
+        monthly_saving = flexible_expenses[category] * 0.10
+        yearly_saving = monthly_saving * 12
+
+        st.success(
+            f"If you reduce **{category}** spending by 10%, "
+            f"you could save **{monthly_saving:,.0f} Ft/month** "
+            f"or **{yearly_saving:,.0f} Ft/year**."
+        )
+
+    st.caption(
+        "Illustrative savings scenario, not a guaranteed saving."
+    )
+
+
 
 st.divider()
 st.subheader("✦ Your Centsyra coach")
