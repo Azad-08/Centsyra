@@ -13,7 +13,7 @@ from typing import Mapping
 
 from dotenv import load_dotenv
 
-from budget import analyze_budget, suggest_savings_actions
+from budget import analyze_budget, suggest_savings_actions, create_savings_plan
 
 load_dotenv()
 
@@ -23,17 +23,37 @@ def ai_is_configured() -> bool:
     return bool(os.getenv("OPENAI_API_KEY", "").strip())
 
 
-def _offline_advice(income: float, expenses: Mapping[str, float], goal: float) -> str:
+
+def _offline_advice(income, expenses, goal):
     analysis = analyze_budget(income, expenses)
     actions = suggest_savings_actions(income, expenses, goal)
-    status = (
-        "Your spending is currently higher than your income."
-        if analysis["overspending"]
-        else f"You have approximately {analysis['remaining_balance']:,.0f} HUF left after monthly expenses."
+    plan = create_savings_plan(income, expenses, goal)
+
+    message = "## Centsyra Smart Budget Coach\n\n"
+
+    message += (
+        f"**Monthly income:** {analysis['income']:,.0f} HUF\n\n"
+        f"**Monthly expenses:** {analysis['total_expenses']:,.0f} HUF\n\n"
+        f"**Remaining balance:** {analysis['remaining_balance']:,.0f} HUF\n\n"
     )
-    return "**Budget snapshot:** " + status + "\n\n**Your next steps:**\n" + "\n".join(
-        f"{index}. {action}" for index, action in enumerate(actions, 1)
-    ) + "\n\n*Demo guidance only; not professional financial advice.*"
+
+    message += "### Your Savings Plan\n\n"
+    message += f"{plan['message']}\n\n"
+
+    message += (
+        f"**Monthly savings gap:** {plan['monthly_gap']:,.0f} HUF\n\n"
+        f"**Weekly target:** {plan['weekly_gap']:,.0f} HUF\n\n"
+    )
+
+    message += "### Recommended Actions\n\n"
+
+    for index, action in enumerate(actions, 1):
+        message += f"{index}. {action}\n\n"
+
+    message += "*Rule-based demo guidance, not professional financial advice.*"
+
+    return message
+
 
 
 def get_ai_advice(income: float, expenses: Mapping[str, float], goal: float) -> str:
@@ -42,8 +62,11 @@ def get_ai_advice(income: float, expenses: Mapping[str, float], goal: float) -> 
     Workflow: validate budget -> run local tools -> ask LLM to prioritize actions.
     Never send credentials; only income, expense categories, and savings goal.
     """
+    
     analysis = analyze_budget(income, expenses)
     actions = suggest_savings_actions(income, expenses, goal)
+    plan = create_savings_plan(income, expenses, goal)
+
     if not ai_is_configured():
         return _offline_advice(income, expenses, goal)
 
@@ -69,6 +92,9 @@ def get_ai_advice(income: float, expenses: Mapping[str, float], goal: float) -> 
                 f"Balance: {analysis['remaining_balance']:,.0f} HUF.\n"
                 f"Savings rate: {analysis['savings_rate']:.1f}%.\n"
                 f"Savings goal: {float(goal):,.0f} HUF.\n"
+                f"Monthly savings gap: {plan['monthly_gap']:,.0f} HUF.\n"
+                f"Weekly savings target: {plan['weekly_gap']:,.0f} HUF.\n"
+                f"Savings plan assessment: {plan['message']}\n"
                 f"Suggestions from the local budget tools: {actions}"
             ),
             max_output_tokens=450,
