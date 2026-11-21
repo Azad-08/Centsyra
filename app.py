@@ -62,7 +62,43 @@ DEFAULT_EXPENSES = {
 expenses: dict[str, int] = {}
 for category, default in DEFAULT_EXPENSES.items():
     expenses[category] = st.sidebar.number_input(
-        category, min_value=0, max_value=10000000, value=default, step=1000, key=f"expense_{category}"
+    category,
+    min_value=0,
+    max_value=1000000,
+    value=default,
+    step=1000,
+    key=f"expense_{category}"
+)
+
+# Simple Expense Logger
+def add_logged_expense():
+    category = st.session_state["log_category"]
+    amount = st.session_state["log_amount"]
+
+    if amount > 0:
+        st.session_state[f"expense_{category}"] += amount
+        st.session_state["log_amount"] = 0
+
+
+st.sidebar.markdown("### Log an Expense")
+
+with st.sidebar.form("log_expense_form"):
+    st.selectbox(
+        "Category",
+        list(DEFAULT_EXPENSES.keys()),
+        key="log_category"
+    )
+
+    st.number_input(
+        "Amount spent (Ft)",
+        min_value=0,
+        step=100,
+        key="log_amount"
+    )
+
+    st.form_submit_button(
+        "Add Expense",
+        on_click=add_logged_expense
     )
 
 goal = st.sidebar.number_input("Monthly savings goal · HUF", min_value=0, max_value=10000000, value=30000, step=1000)
@@ -221,6 +257,7 @@ if total_spending > 0:
     st.caption(
         "Illustrative savings scenario, not a guaranteed saving."
     )
+
 
 
 st.divider()
