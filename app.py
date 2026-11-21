@@ -161,6 +161,68 @@ with st.container(border=True):
     st.bar_chart(comparison, horizontal=True, color=["#607787", "#42dfb2"])
     st.caption("These numbers are hypothetical, not automatically applied to your budget. All amounts are monthly HUF.")
 
+
+# Smart Spending Insights
+st.subheader("📊 Smart Spending Insights")
+
+total_spending = sum(expenses.values())
+
+if total_spending > 0:
+    largest_category = max(expenses, key=expenses.get)
+    largest_amount = expenses[largest_category]
+    largest_percentage = largest_amount / total_spending * 100
+
+    st.info(
+        f"💰 Your largest expense is **{largest_category}**: "
+        f"{largest_amount:,.0f} Ft "
+        f"({largest_percentage:.1f}% of total spending)."
+    )
+
+    st.markdown("### Spending Breakdown")
+
+    sorted_expenses = sorted(
+        expenses.items(),
+        key=lambda item: item[1],
+        reverse=True
+    )
+
+    for category, amount in sorted_expenses:
+        percentage = amount / total_spending
+
+        st.write(
+            f"**{category}** — {amount:,.0f} Ft "
+            f"({percentage * 100:.1f}%)"
+        )
+
+        st.progress(percentage)
+
+    # Potential Savings Opportunity
+    st.markdown("### 💡 Potential Savings Opportunity")
+
+    flexible_expenses = {
+        category: amount
+        for category, amount in expenses.items()
+        if category.lower() in {
+            "groceries", "subscriptions", "other", "transport"
+        } and amount > 0
+    }
+
+    if flexible_expenses:
+        category = max(flexible_expenses, key=flexible_expenses.get)
+        monthly_saving = flexible_expenses[category] * 0.10
+        yearly_saving = monthly_saving * 12
+
+        st.success(
+            f"If you reduce **{category}** spending by 10%, "
+            f"you could save **{monthly_saving:,.0f} Ft/month** "
+            f"or **{yearly_saving:,.0f} Ft/year**."
+        )
+
+    st.caption(
+        "Illustrative savings scenario, not a guaranteed saving."
+    )
+
+
 st.divider()
 st.subheader("✦ Your Centsyra coach")
 if ai_is_configured():
